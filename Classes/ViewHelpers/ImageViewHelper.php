@@ -341,7 +341,7 @@ class ImageViewHelper extends AbstractTagBasedViewHelper
         // descriptors within a single srcset is invalid. With width descriptors
         // the browser already selects the best image for high-DPI displays.
         if ($this->pictureConfiguration->retinaShouldBeUsed() && $srcsetValue === '') {
-            $this->addRetina($processingInstructions, $tag, $image);
+            $this->addRetina($processingInstructions, $tag, $image, $imageUri);
         }
         return $tag;
     }
@@ -376,14 +376,25 @@ class ImageViewHelper extends AbstractTagBasedViewHelper
     /**
      * Function to render images for given retina resolutions and add to rendering tag.
      */
-    protected function addRetina(array $processingInstructions, TagBuilder $tag, FileInterface $image): void
-    {
+    protected function addRetina(
+        array $processingInstructions,
+        TagBuilder $tag,
+        FileInterface $image,
+        ?string $imageUriRegular = null
+    ): void {
         // 2x is default. Use multiple if retina is set in TypoScript settings.
         $retinaSettings = $this->pictureConfiguration->getRetinaSettings();
 
-        // Process regular image.
-        $processedImageRegular = $this->applyProcessingInstructions($processingInstructions, $image);
-        $imageUriRegular = $this->imageService->getImageUri($processedImageRegular, $this->arguments['absolute']);
+        // The 1x image has already been processed by the caller. Processing it again with the
+        // same instructions returns the same ProcessedFile and the same URI, but costs another
+        // processed file lookup per tag - a third of all image processing on a page with many
+        // images, and for a source tag the result is not even used, because the tag already
+        // carries a srcset. Callers that hold the URI pass it in, the fallback keeps this
+        // method usable on its own.
+        $imageUriRegular ??= $this->imageService->getImageUri(
+            $this->applyProcessingInstructions($processingInstructions, $image),
+            $this->arguments['absolute']
+        );
 
         // Process additional retina images. Tag value can be gathered for source tags from srcset value as there it
         // was to be set already because adding retina is not mandatory.
